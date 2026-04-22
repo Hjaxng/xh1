@@ -5,7 +5,6 @@ INFO='\033[0;36m'  # 青色
 SUCCESS='\033[0;32m' # 绿色
 WORKING='\033[1;33m' # 黄色
 ERROR='\033[0;31m'   # 红色
-HIGHLIGHT='\033[1;35m' # 紫色
 NC='\033[0m'         # 重置
 
 # 配置路径
@@ -13,45 +12,8 @@ INSTALL_DIR="/usr/local/bin"
 SCRIPT_NAME="check_panel.sh"
 TARGET_PATH="$INSTALL_DIR/$SCRIPT_NAME"
 
-# --- 卸载逻辑 ---
-do_uninstall() {
-    echo -e "${WORKING}>> 正在启动卸载程序...${NC}"
-    
-    # 1. 移除定时任务
-    if crontab -l 2>/dev/null | grep -q "$SCRIPT_NAME"; then
-        (crontab -l 2>/dev/null | grep -v "$SCRIPT_NAME") | crontab -
-        echo -e "${SUCCESS}[完毕] 定时任务已移除${NC}"
-    else
-        echo -e "${INFO}[跳过] 未发现相关的定时任务${NC}"
-    fi
-
-    # 2. 删除脚本文件
-    if [ -f "$TARGET_PATH" ]; then
-        rm -f "$TARGET_PATH"
-        echo -e "${SUCCESS}[完毕] 脚本文件已删除 ($TARGET_PATH)${NC}"
-    else
-        echo -e "${INFO}[跳过] 脚本文件不存在${NC}"
-    fi
-
-    echo -e "${INFO}====================================================${NC}"
-    echo -e "${SUCCESS}      面板监控脚本已成功从您的系统中移除！          ${NC}"
-    echo -e "${INFO}====================================================${NC}"
-    exit 0
-}
-
-# --- 安装逻辑 ---
-do_install() {
-    echo -e "${INFO}====================================================${NC}"
-    echo -e "${INFO}       面板服务自动监控 [安装/卸载一体版]           ${NC}"
-    echo -e "${INFO}====================================================${NC}"
-
-    # 权限检测
-    if [ "$EUID" -ne 0 ]; then 
-        echo -e "${ERROR}[错误]${NC} 请使用 root 权限运行！"
-        exit 1
-    fi
-
-    echo -e "${WORKING}>> [1/3] 正在配置监控脚本...${NC}"
+# --- 核心逻辑：监控脚本内容 ---
+write_core_script() {
     cat > "$TARGET_PATH" << 'EOF'
 #!/bin/bash
 PORT=$(cat /www/server/panel/data/port.pl 2>/dev/null || echo "8888")
@@ -65,25 +27,70 @@ if ! check; then
 fi
 EOF
     chmod +x "$TARGET_PATH"
-    echo -e "${SUCCESS}[成功] 脚本位置: $TARGET_PATH${NC}"
-
-    echo -e "${WORKING}>> [2/3] 正在配置定时任务...${NC}"
-    (crontab -l 2>/dev/null | grep -v "$SCRIPT_NAME" | grep -v "bt 1"; echo "*/5 * * * * $TARGET_PATH > /dev/null 2>&1") | crontab -
-    
-    echo -e "${WORKING}>> [3/3] 正在验证安装结果...${NC}"
-    sleep 1
-    echo -e "${INFO}----------------------------------------------------${NC}"
-    echo -e "${SUCCESS}部署已完成！当前定时任务列表：${NC}"
-    crontab -l | grep --color=always -E "$SCRIPT_NAME|$"
-    echo -e "${INFO}----------------------------------------------------${NC}"
-    echo -e "卸载命令: ${HIGHLIGHT}bash $0 uninstall${NC}"
-    echo -e "${INFO}====================================================${NC}"
 }
 
-# --- 主程序入口 ---
-# 判断执行参数
-if [ "$1" == "uninstall" ]; then
-    do_uninstall
-else
-    do_install
+# --- 功能函数：安装 ---
+install_monitor() {
+    echo -e "${WORKING}>> 正在安装监控...${NC}"
+    write_core_script
+    (crontab -l 2>/dev/null | grep -v "$SCRIPT_NAME" | grep -v "bt 1"; echo "*/5 * * * * $TARGET_PATH > /dev/null 2>&1") | crontab -
+    echo -e "${SUCCESS}[成功] 监控已启动，每 5 分钟执行一次。${NC}"
+}
+
+# --- 功能函数：卸载 ---
+uninstall_monitor() {
+    echo -e "${WORKING}>> 正在卸载监控...${NC}"
+    (crontab -l 2>/dev/null | grep -v "$SCRIPT_NAME") | crontab -
+    rm -f "$TARGET_PATH"
+    echo -e "${SUCCESS}[成功] 监控已从系统中彻底移除。${NC}"
+}
+
+# --- 功能函数：查看状态 ---
+show_status() {
+    echo -e "${INFO}--- 当前定时任务状态 ---${NC}"
+    if crontab -l 2>/dev/null | grep -q "$SCRIPT_NAME"; then
+        crontab -l | grep --color=always "$SCRIPT_NAME"
+        echo -e "${SUCCESS}状态：正在运行中${NC}"
+    else
+        echo -e "${ERROR}状态：未安装或未运行${NC}"
+    fi
+    echo -e "${INFO}--- 最近 5 条重启日志 ---${NC}"
+    if [ -f /tmp/panel_monitor.log ]; then
+        tail -n 5 /tmp/panel_monitor.log
+    else
+        echo "暂无日志"
+    fi
+}
+
+# --- 主菜单界面 ---
+main_menu() {
+    clear
+    echo -e "${INFO}=========================================${NC}"
+    echo -e "${INFO}       面板自动监控管理工具              ${NC}"
+    echo -e "${INFO}=========================================${NC}"
+    echo -e "  ${WORKING}1.${NC} 安装/更新 自动监控"
+    echo -e "  ${WORKING}2.${NC} ${ERROR}卸载${NC} 自动监控"
+    echo -e "  ${WORKING}3.${NC} 查看 运行状态/日志"
+    echo -e "  ${WORKING}4.${NC} 手动 执行一次检测"
+    echo -e "  ${WORKING}0.${NC} 退出脚本"
+    echo -e "${INFO}=========================================${NC}"
+    read -p "请输入数字选择功能: " num
+
+    case "$num" in
+        1) install_monitor ;;
+        2) uninstall_monitor ;;
+        3) show_status ;;
+        4) $TARGET_PATH && echo -e "${SUCCESS}检测完成${NC}" || echo -e "${ERROR}脚本未安装${NC}" ;;
+        0) exit 0 ;;
+        *) echo -e "${ERROR}输入错误，请重新选择${NC}" ; sleep 1 ; main_menu ;;
+    esac
+}
+
+# 权限检查
+if [ "$EUID" -ne 0 ]; then 
+    echo -e "${ERROR}[错误]${NC} 请使用 root 权限运行！"
+    exit 1
 fi
+
+# 启动菜单
+main_menu

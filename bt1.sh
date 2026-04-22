@@ -4,18 +4,18 @@
 export LANG=en_US.UTF-8
 
 # 颜色定义
-INFO='\033[0;36m'     # 青色 (主要用于边框和标题)
-SUCCESS='\033[0;32m'  # 绿色 (用于成功提示)
-WORKING='\033[1;33m'  # 黄色 (用于选项数字)
-CONTACT='\033[1;35m'  # 淡紫色 (专属联系方式颜色，低调高雅)
-ERROR='\033[0;31m'    # 红色 (用于报错)
+INFO='\033[0;36m'     # 青色
+SUCCESS='\033[0;32m'  # 绿色
+WORKING='\033[1;33m'  # 黄色
+CONTACT='\033[1;35m'  # 淡紫色
+ERROR='\033[0;31m'    # 红色
 NC='\033[0m'          # 重置颜色
 
 # --- 简洁版页眉 ---
 show_header() {
     clear
     echo -e "${INFO}----------------------------------------------------${NC}"
-    echo -e "  宝塔面板守护脚本：自动检测面板是否存活，告别面板假死
+    echo -e "  宝塔面板守护脚本：自动检测面板是否存活，告别面板假死"
     echo -e "${INFO}----------------------------------------------------${NC}"
 }
 
@@ -23,7 +23,7 @@ show_header() {
 show_footer() {
     echo ""
     echo -e "${INFO}----------------------------------------------------${NC}"
-    echo -e " [服务器资源] 联系Telegram: ${CONTACT}@hjaxng${NC}"
+    echo -e " [香港服务器] 联系Telegram: ${CONTACT}@hjaxng${NC}"
     echo -e "${INFO}----------------------------------------------------${NC}"
 }
 
@@ -32,7 +32,7 @@ INSTALL_DIR="/usr/local/bin"
 SCRIPT_NAME="check_panel.sh"
 TARGET_PATH="$INSTALL_DIR/$SCRIPT_NAME"
 
-# --- 核心监控逻辑 (3次重试, 静默模式) ---
+# --- 核心监控逻辑 ---
 write_core_script() {
     cat > "$TARGET_PATH" << 'EOF'
 #!/bin/bash
